@@ -24,7 +24,7 @@ export class CrawlerService {
 
     const base64 = (await el.screenshot({ encoding: 'base64' })) as string;
 
-    const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = this.genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
     try {
       const result = await model.generateContent([
