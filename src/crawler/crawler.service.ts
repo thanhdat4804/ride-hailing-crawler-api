@@ -13,7 +13,7 @@ export class CrawlerService {
   constructor(private configService: ConfigService) {
     const apiKey = this.configService.get<string>('GEMINI_API_KEY');
     if (!apiKey) {
-      throw new Error('GEMINI_API_KEY không được định nghĩa trong .env');
+      throw new Error('GEMINI_API_KEY không được định nghĩa');
     }
     this.genAI = new GoogleGenerativeAI(apiKey);
   }
@@ -22,9 +22,9 @@ export class CrawlerService {
     const el = await page.$('img#imgCaptcha');
     if (!el) return null;
 
-    const base64 = await el.screenshot({ encoding: 'base64' }) as string;
+    const base64 = (await el.screenshot({ encoding: 'base64' })) as string;
 
-    const model = this.genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
     try {
       const result = await model.generateContent([
@@ -40,25 +40,39 @@ export class CrawlerService {
   }
 
   /**
-   * Kiểm tra phạt nguội realtime
-   * @param licensePlate Biển số xe (đã chuẩn hóa)
-   * @param loaiXe '1' = xe máy / xe đạp điện, '2' = ô tô
+   * Kiểm tra phạt nguội realtime bằng serverless Chrome (browserless.io)
+   * Không cần launch Chrome local → chạy mượt trên Render free tier
    */
   async checkViolationsRealtime(licensePlate: string, loaiXe: string = '1') {
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    });
-    const page = await browser.newPage();
-    console.log(`Bắt đầu kiểm tra phạt nguội cho xe ${licensePlate} (loại xe: ${loaiXe})`);
+    const browserlessToken = this.configService.get<string>('BROWSERLESS_TOKEN');
+    if (!browserlessToken) {
+      console.error('BROWSERLESS_TOKEN chưa được cấu hình');
+      return {
+        hasViolation: false,
+        message: 'Dịch vụ tạm thời không khả dụng (thiếu cấu hình)',
+      };
+    }
+
+    let browser: puppeteer.Browser | null = null;
+    let page: puppeteer.Page | null = null;
+
     try {
+      // Kết nối đến Chrome serverless của browserless.io
+      browser = await puppeteer.connect({
+        browserWSEndpoint: `wss://chrome.browserless.io?token=${browserlessToken}&--no-sandbox&--disable-setuid-sandbox&--disable-dev-shm-usage&--disable-gpu`,
+      });
+
+      page = await browser.newPage();
+
+      console.log(`Bắt đầu kiểm tra phạt nguội cho biển số: ${licensePlate} (loại xe: ${loaiXe === '1' ? 'xe máy' : 'ô tô'})`);
+
       await page.goto('https://phatnguoi.csgt.vn/tra-cuu-phuong-tien-vi-pham.html', {
         waitUntil: 'networkidle2',
         timeout: 60000,
       });
 
       await page.type('input[name="BienKiemSoat"]', licensePlate);
-      await page.select('select[name="LoaiXe"]', loaiXe); 
+      await page.select('select[name="LoaiXe"]', loaiXe);
 
       let solved = false;
       let attempts = 0;
@@ -66,6 +80,8 @@ export class CrawlerService {
 
       while (!solved && attempts < maxAttempts) {
         attempts++;
+        console.log(`Lần thử CAPTCHA thứ ${attempts}/${maxAttempts}`);
+
         const code = await this.solveCaptcha(page);
         if (!code) {
           await new Promise(r => setTimeout(r, 3000));
@@ -92,22 +108,23 @@ export class CrawlerService {
 
         if (hasResult) {
           solved = true;
+          console.log('CAPTCHA đúng!');
         } else {
-          console.log('CAPTCHA sai, reload trang...');
+          console.log('CAPTCHA sai, reload trang để thử lại...');
           await page.reload({ waitUntil: 'networkidle2' });
           await page.type('input[name="BienKiemSoat"]', licensePlate);
-          await page.select('select[name="LoaiXe"]', loaiXe);  
+          await page.select('select[name="LoaiXe"]', loaiXe);
         }
       }
 
       if (!solved) {
         return {
           hasViolation: false,
-          message: 'Không thể kiểm tra do không giải được CAPTCHA. Vui lòng thử lại sau.',
+          message: 'Không thể kiểm tra do CAPTCHA quá khó. Vui lòng thử lại sau vài phút.',
         };
       }
 
-      // Kiểm tra có vi phạm thực sự không (dựa vào #bodyPrint123)
+      // Kiểm tra có vi phạm thực sự không
       const hasViolationBody = await page.evaluate(() => {
         const bodyPrint = document.querySelector('#bodyPrint123');
         return bodyPrint && bodyPrint.textContent?.trim().length > 100;
@@ -131,7 +148,7 @@ export class CrawlerService {
       return {
         hasViolation: true,
         message: 'Cảnh báo: Xe có phạt nguội chưa xử lý',
-        latestViolation: {
+        violation: {
           time: data.violation_time?.trim() || 'Không rõ',
           location: data.violation_location?.trim() || 'Không rõ',
           description: data.violation_description?.trim() || data.violation_raw?.trim() || 'Không rõ hành vi',
@@ -140,13 +157,15 @@ export class CrawlerService {
         },
       };
     } catch (error: any) {
-      console.error('Lỗi trong quá trình crawl:', error);
+      console.error('Lỗi nghiêm trọng trong quá trình crawl:', error);
       return {
         hasViolation: false,
-        message: 'Lỗi hệ thống khi kiểm tra: ' + error.message,
+        message: 'Lỗi hệ thống khi kiểm tra phạt nguội. Vui lòng thử lại sau.',
       };
     } finally {
-      await browser.close();
+      if (browser) {
+        await browser.close();
+      }
     }
   }
 }
