@@ -2,18 +2,6 @@ import { Injectable, OnModuleInit } from "@nestjs/common"
 import * as puppeteer from "puppeteer"
 import * as cheerio from "cheerio"
 
-export interface ViolationResult {
-  plate: string
-  vehicleType: string
-  plateColor: string
-  violation: string
-  time: string
-  location: string
-  detectedBy: string
-  detectedAddress: string
-  status: string
-}
-
 @Injectable()
 export class CrawlerService implements OnModuleInit {
 
@@ -23,10 +11,7 @@ export class CrawlerService implements OnModuleInit {
 
     this.browser = await puppeteer.launch({
       headless: true,
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox"
-      ]
+      args: ["--no-sandbox", "--disable-setuid-sandbox"]
     })
 
     console.log("Crawler browser started")
@@ -36,7 +21,7 @@ export class CrawlerService implements OnModuleInit {
   async checkViolations(
     plate: string,
     vehicleType: string
-  ): Promise<ViolationResult | null> {
+  ) {
 
     const page = await this.browser.newPage()
 
@@ -74,45 +59,72 @@ export class CrawlerService implements OnModuleInit {
       const card = $(".violation-card")
 
       if (!card.length) {
-        return null
-      }
 
-      const result: ViolationResult = {
-
-        plate: card.find(".violation-title")
-          .text()
-          .replace("Biển số:", "")
-          .trim(),
-
-        vehicleType: card.find(".info-item:contains('Loại xe') .value").text().trim(),
-
-        plateColor: card.find(".info-item:contains('Màu biển') .value").text().trim(),
-
-        violation: card.find(".info-item:contains('Lỗi vi phạm') .value").text().trim(),
-
-        time: card.find(".info-item:contains('Thời gian') .value").text().trim(),
-
-        location: card.find(".info-item:contains('Địa điểm') .value").text().trim(),
-
-        detectedBy: card.find(".info-item:contains('Đơn vị phát hiện') .value").text().trim(),
-
-        detectedAddress: card
-          .find(".info-item:contains('Địa chỉ')")
-          .first()
-          .find(".value")
-          .text()
-          .trim(),
-
-        status: card.find(".status-badge").text().trim()
+        return {
+          licensePlate: plate,
+          hasViolation: false,
+          message: "Không phát hiện vi phạm"
+        }
 
       }
 
-      return result
+      const description = card
+        .find(".info-item:contains('Lỗi vi phạm') .value")
+        .text()
+        .trim()
+
+      if (!description) {
+        return {
+          licensePlate: plate,
+          hasViolation: false,
+          message: "Không phát hiện vi phạm"
+        }
+      }
+
+      const time = card
+        .find(".info-item:contains('Thời gian') .value")
+        .text()
+        .trim()
+
+      const location = card
+        .find(".info-item:contains('Địa điểm') .value")
+        .text()
+        .trim()
+
+      const status = card
+        .find(".status-badge")
+        .text()
+        .trim()
+
+      const code = description.split(".")[0]
+
+      return {
+
+        licensePlate: plate,
+
+        hasViolation: true,
+
+        message: "Phát hiện vi phạm",
+
+        violation: {
+          time,
+          location,
+          description,
+          code,
+          status
+        }
+
+      }
 
     } catch (err) {
 
       console.error("Crawler error:", err)
-      return null
+
+      return {
+        licensePlate: plate,
+        hasViolation: false,
+        message: "Crawler error"
+      }
 
     } finally {
 
