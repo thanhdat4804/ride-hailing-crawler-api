@@ -13,8 +13,6 @@ export class CrawlerService implements OnModuleInit {
 
       headless: true,
 
-      executablePath: puppeteer.executablePath(),
-
       args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",
