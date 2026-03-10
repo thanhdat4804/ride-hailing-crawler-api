@@ -61,7 +61,10 @@ export class CrawlerService implements OnModuleInit {
 
       await page.goto(
         "https://www.csgt.vn/index.php/tra-cuu-phat-nguoi",
-        { waitUntil: "domcontentloaded" }
+        { 
+          waitUntil: "domcontentloaded",
+          timeout: 60000
+        }
       )
 
       await page.waitForSelector('input[name="plate_number"]')
