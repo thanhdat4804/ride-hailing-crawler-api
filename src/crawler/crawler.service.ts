@@ -11,7 +11,6 @@ export class CrawlerService implements OnModuleInit {
 
     this.browser = await puppeteer.launch({
       headless: true,
-      executablePath: "/opt/render/project/.render/chrome/chrome",
       args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",
