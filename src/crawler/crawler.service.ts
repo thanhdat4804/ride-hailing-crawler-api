@@ -11,7 +11,11 @@ export class CrawlerService implements OnModuleInit {
 
     this.browser = await puppeteer.launch({
       headless: true,
-      args: ["--no-sandbox", "--disable-setuid-sandbox"]
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage"
+      ]
     })
 
     console.log("Crawler browser started")
@@ -26,7 +30,8 @@ export class CrawlerService implements OnModuleInit {
     const page = await this.browser.newPage()
 
     try {
-
+      page.setDefaultNavigationTimeout(30000)
+      page.setDefaultTimeout(30000)
       await page.goto(
         "https://www.csgt.vn/index.php/tra-cuu-phat-nguoi",
         { waitUntil: "domcontentloaded" }
@@ -38,7 +43,10 @@ export class CrawlerService implements OnModuleInit {
 
       await page.select('select[name="vehicle_type"]', vehicleType)
 
-      await page.click("#submitBtn")
+      await Promise.all([
+        page.click("#submitBtn"),
+        page.waitForSelector("#result")
+      ])
 
       await page.waitForFunction(() => {
 
@@ -127,9 +135,9 @@ export class CrawlerService implements OnModuleInit {
       }
 
     } finally {
-
-      await page.close()
-
+      if (!page.isClosed()) {
+        await page.close()
+      }
     }
 
   }
