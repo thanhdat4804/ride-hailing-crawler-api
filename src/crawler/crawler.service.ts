@@ -1,22 +1,45 @@
 import { Injectable, OnModuleInit } from "@nestjs/common"
-import * as puppeteer from "puppeteer"
+import puppeteer, { Browser, Page } from "puppeteer-core"
+import chromium from "@sparticuz/chromium"
 import * as cheerio from "cheerio"
 
 @Injectable()
 export class CrawlerService implements OnModuleInit {
 
-  private browser: puppeteer.Browser
+  private browser: Browser
 
   async onModuleInit() {
 
-    this.browser = await puppeteer.launch({
-      headless: true,
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage"
-      ]
-    })
+    if (process.platform === "win32") {
+
+      // DEV (Windows)
+      this.browser = await puppeteer.launch({
+        executablePath:
+          "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+        headless: true,
+        args: [
+          "--no-sandbox",
+          "--disable-setuid-sandbox"
+        ]
+      })
+
+    } else {
+
+      // SERVER (Linux / Docker / Render)
+
+      const executablePath = await chromium.executablePath()
+
+      this.browser = await puppeteer.launch({
+        executablePath,
+        args: [
+          ...chromium.args,
+          "--no-sandbox",
+          "--disable-setuid-sandbox"
+        ],
+        headless: true
+      })
+
+    }
 
     console.log("Crawler browser started")
 
@@ -27,11 +50,15 @@ export class CrawlerService implements OnModuleInit {
     vehicleType: string
   ) {
 
-    const page = await this.browser.newPage()
+    let page: Page | null = null
 
     try {
+
+      page = await this.browser.newPage()
+
       page.setDefaultNavigationTimeout(30000)
       page.setDefaultTimeout(30000)
+
       await page.goto(
         "https://www.csgt.vn/index.php/tra-cuu-phat-nguoi",
         { waitUntil: "domcontentloaded" }
@@ -82,11 +109,13 @@ export class CrawlerService implements OnModuleInit {
         .trim()
 
       if (!description) {
+
         return {
           licensePlate: plate,
           hasViolation: false,
           message: "Không phát hiện vi phạm"
         }
+
       }
 
       const time = card
@@ -135,9 +164,11 @@ export class CrawlerService implements OnModuleInit {
       }
 
     } finally {
-      if (!page.isClosed()) {
+
+      if (page && !page.isClosed()) {
         await page.close()
       }
+
     }
 
   }
