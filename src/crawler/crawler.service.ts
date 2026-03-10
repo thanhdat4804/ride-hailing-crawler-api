@@ -10,15 +10,13 @@ export class CrawlerService implements OnModuleInit {
   async onModuleInit() {
 
     this.browser = await puppeteer.launch({
-
       headless: true,
-
+      executablePath: "/opt/render/project/.render/chrome/chrome",
       args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",
         "--disable-dev-shm-usage"
       ]
-
     })
 
     console.log("Crawler browser started")
