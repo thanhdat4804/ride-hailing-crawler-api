@@ -34,7 +34,9 @@ export class CrawlerService implements OnModuleInit {
         args: [
           ...chromium.args,
           "--no-sandbox",
-          "--disable-setuid-sandbox"
+          "--disable-setuid-sandbox",
+          "--disable-dev-shm-usage",
+          "--disable-gpu"
         ],
         headless: true
       })
@@ -56,8 +58,8 @@ export class CrawlerService implements OnModuleInit {
 
       page = await this.browser.newPage()
 
-      page.setDefaultNavigationTimeout(30000)
-      page.setDefaultTimeout(30000)
+      page.setDefaultNavigationTimeout(60000)
+      page.setDefaultTimeout(60000)
 
       await page.goto(
         "https://www.csgt.vn/index.php/tra-cuu-phat-nguoi",
