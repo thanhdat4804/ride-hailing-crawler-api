@@ -1,6 +1,5 @@
 import { Injectable, OnModuleInit } from "@nestjs/common"
-import puppeteer, { Browser, Page } from "puppeteer-core"
-import chromium from "@sparticuz/chromium"
+import puppeteer, { Browser, Page } from "puppeteer"
 import * as cheerio from "cheerio"
 
 @Injectable()
@@ -10,38 +9,15 @@ export class CrawlerService implements OnModuleInit {
 
   async onModuleInit() {
 
-    if (process.platform === "win32") {
-
-      // DEV (Windows)
-      this.browser = await puppeteer.launch({
-        executablePath:
-          "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
-        headless: true,
-        args: [
-          "--no-sandbox",
-          "--disable-setuid-sandbox"
-        ]
-      })
-
-    } else {
-
-      // SERVER (Linux / Docker / Render)
-
-      const executablePath = await chromium.executablePath()
-
-      this.browser = await puppeteer.launch({
-        executablePath,
-        args: [
-          ...chromium.args,
-          "--no-sandbox",
-          "--disable-setuid-sandbox",
-          "--disable-dev-shm-usage",
-          "--disable-gpu"
-        ],
-        headless: true
-      })
-
-    }
+    this.browser = await puppeteer.launch({
+      headless: true,
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-gpu"
+      ]
+    })
 
     console.log("Crawler browser started")
 
@@ -63,7 +39,7 @@ export class CrawlerService implements OnModuleInit {
 
       await page.goto(
         "https://www.csgt.vn/index.php/tra-cuu-phat-nguoi",
-        { 
+        {
           waitUntil: "domcontentloaded",
           timeout: 60000
         }
